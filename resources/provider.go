@@ -1,24 +1,19 @@
 package resources
 
 import (
-	"github.com/cloudquery/cq-provider-sdk/plugin"
-	"github.com/cloudquery/cq-provider-sdk/plugin/schema"
-	"github.com/cloudquery/cq-provider-template/client"
+	"github.com/cloudquery/cq-provider-sdk/provider"
+	"github.com/cloudquery/cq-provider-sdk/provider/schema"
+	"github.com/cloudquery/cq-provider-terraform/client"
 )
 
-func Provider() *plugin.Provider {
-	return &plugin.Provider{
-		Name:      "your_provider_name",
+func Provider() *provider.Provider {
+	return &provider.Provider{
+		Name:      "aws",
 		Configure: client.Configure,
 		ResourceMap: map[string]*schema.Table{
-			"demo_resource": DemoResource(),
 		},
-		Config: func() interface{} {
+		Config: func() provider.Config {
 			return &client.Config{}
 		},
-		DefaultConfigGenerator: func() (string, error) {
-			return "", nil
-		},
 	}
-
 }

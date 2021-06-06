@@ -1,17 +1,27 @@
 package client
 
-// Provider Configuration
+import "github.com/hashicorp/hcl/v2"
 
 type Config struct {
-	// here goes top level configuration for your provider
-	// This object will be pass filled in depending on user's configuration
-	ExampleConfig  bool      `yaml:"example_config"`
-
-	// resources that user asked to fetch
-	// each resource can have optional additional configurations
-	Resources  []struct {
-		Name  string
-		Other map[string]interface{} `yaml:",inline"`
-	}
+	Backend BackendType `hcl:"backend"`
+	Config  *hcl.Attribute `hcl:"config"`
 }
 
+func (c Config) Example() string {
+	return `configuration {
+
+	// local backend
+    backend = "local"
+	config = {
+		path = "/path/to/tfstate/file"
+	}
+	// s3 backend
+	backend = "s3"
+	config = {
+		bucket = "terraform-state-prod"
+		key    = "network/terraform.tfstate"
+		region = "us-east-1"
+	}
+}
+`
+}
