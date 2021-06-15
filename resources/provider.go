@@ -8,9 +8,10 @@ import (
 
 func Provider() *provider.Provider {
 	return &provider.Provider{
-		Name:      "aws",
+		Name:      "terraform",
 		Configure: client.Configure,
 		ResourceMap: map[string]*schema.Table{
+			"tf.data": TFData(),
 		},
 		Config: func() provider.Config {
 			return &client.Config{}

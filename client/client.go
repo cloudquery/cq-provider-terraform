@@ -1,20 +1,68 @@
 package client
 
 import (
+	"fmt"
+
+	"errors"
+
 	"github.com/cloudquery/cq-provider-sdk/provider/schema"
 	"github.com/hashicorp/go-hclog"
 )
 
+type Client struct {
+	Backends map[string]Backend
+	logger   hclog.Logger
+
+	CurrentBackend string
+}
+
+func NewTerraformClient(logger hclog.Logger, backends map[string]Backend) Client {
+	return Client{
+		Backends: backends,
+		logger:   logger,
+	}
+}
+
+func (c *Client) Logger() hclog.Logger {
+	return c.logger
+}
+
 func Configure(logger hclog.Logger, providerConfig interface{}) (schema.ClientMeta, error) {
-	//ctx := context.Background()
 	terraformConfig := providerConfig.(*Config)
 
-	client, err := NewBackend(terraformConfig)
-	if err != nil {
-		return nil, err
+	if terraformConfig.Config == nil || len(terraformConfig.Config) == 0 {
+		return nil, errors.New("no config were provided")
 	}
 
-	client.Init()
+	var backends = make(map[string]Backend)
+	for _, config := range terraformConfig.Config {
+		if b, err := NewBackend(&config); err == nil {
+			backends[b.Name()] = b
+		} else {
+			return nil, fmt.Errorf("cannot load backend, %s", err)
+		}
+	}
 
-	return nil, nil
+	client := NewTerraformClient(logger, backends)
+
+	return &client, nil
+}
+
+func (c *Client) Backend() Backend {
+	if c.CurrentBackend != "" {
+		backend := c.Backends[c.CurrentBackend]
+		return backend
+	}
+	for _, backend := range c.Backends {
+		return backend
+	}
+	return nil
+}
+
+func (c *Client) withSpecificBackend(backendName string) *Client {
+	return &Client{
+		Backends:       c.Backends,
+		logger:         c.logger,
+		CurrentBackend: backendName,
+	}
 }
