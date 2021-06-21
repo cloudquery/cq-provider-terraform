@@ -10,13 +10,13 @@ import (
 )
 
 type Client struct {
-	Backends map[string]Backend
+	Backends map[string]*TerraformBackend
 	logger   hclog.Logger
 
 	CurrentBackend string
 }
 
-func NewTerraformClient(logger hclog.Logger, backends map[string]Backend) Client {
+func NewTerraformClient(logger hclog.Logger, backends map[string]*TerraformBackend) Client {
 	return Client{
 		Backends: backends,
 		logger:   logger,
@@ -34,10 +34,10 @@ func Configure(logger hclog.Logger, providerConfig interface{}) (schema.ClientMe
 		return nil, errors.New("no config were provided")
 	}
 
-	var backends = make(map[string]Backend)
+	var backends = make(map[string]*TerraformBackend)
 	for _, config := range terraformConfig.Config {
 		if b, err := NewBackend(&config); err == nil {
-			backends[b.Name()] = b
+			backends[b.BackendName] = b
 		} else {
 			return nil, fmt.Errorf("cannot load backend, %s", err)
 		}
@@ -48,7 +48,7 @@ func Configure(logger hclog.Logger, providerConfig interface{}) (schema.ClientMe
 	return &client, nil
 }
 
-func (c *Client) Backend() Backend {
+func (c *Client) Backend() *TerraformBackend {
 	if c.CurrentBackend != "" {
 		backend := c.Backends[c.CurrentBackend]
 		return backend

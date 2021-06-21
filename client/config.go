@@ -15,8 +15,8 @@ func (c Config) Example() string {
 	// s3 backend
     config "myremote" {
       backend = "s3"
-      bucket = "rlive-tf-states"
-      key    = "rlive.tfstate"
+      bucket = "tf-states"
+      key    = "terraform.tfstate"
       region = "us-east-1"
       role_arn = ""
     }

@@ -18,12 +18,6 @@ import (
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
 )
 
-type BackendConfigBlock struct {
-	BackendName string      `hcl:"config,label"`
-	BackendType string      `hcl:"backend,attr"`
-	ConfigAttrs interface{} `hcl:"config,remain"`
-}
-
 type BackendType string
 
 const (
@@ -31,59 +25,20 @@ const (
 	S3    BackendType = "s3"
 )
 
-type Backend interface {
-	loadConfig(config interface{}) error
-	read() (*TerraformData, error)
-	Type() BackendType
-	Name() string
-	Data() *TerraformData
+type BackendConfigBlock struct {
+	BackendName string      `hcl:"config,label"`
+	BackendType string      `hcl:"backend,attr"`
+	ConfigAttrs interface{} `hcl:"config,remain"`
+}
+
+type TerraformBackend struct {
+	BackendType BackendType
+	BackendName string
+	Data        *TerraformData
 }
 
 type LocalBackendConfig struct {
 	Path string `hcl:"path"`
-}
-
-type LocalBackend struct {
-	BackendName string
-	Config      LocalBackendConfig
-	data        *TerraformData
-}
-
-func (b *LocalBackend) read() (*TerraformData, error) {
-	f, err := os.Open(b.Config.Path)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read tfstate from %s", b.Config.Path)
-	}
-	defer f.Close()
-
-	var s TerraformData
-	if err := json.NewDecoder(f).Decode(&s.State); err != nil {
-		return nil, fmt.Errorf("invalid tf state file")
-	}
-	if s.State.Version != StateVersion {
-		return nil, fmt.Errorf("unsupported state version %d", s.State.Version)
-	}
-	return &s, nil
-}
-
-func (b *LocalBackend) loadConfig(config interface{}) error {
-	cfg := config.(hcl.Body)
-	if diags := gohcl.DecodeBody(cfg, nil, &b.Config); diags != nil {
-		return errors.New("cannot parse backend config")
-	}
-	return nil
-}
-
-func (b *LocalBackend) Type() BackendType {
-	return LOCAL
-}
-
-func (b *LocalBackend) Name() string {
-	return b.BackendName
-}
-
-func (b *LocalBackend) Data() *TerraformData {
-	return b.data
 }
 
 type S3BackendConfig struct {
@@ -93,29 +48,30 @@ type S3BackendConfig struct {
 	RoleArn string `hcl:"role_arn,optional"`
 }
 
-type S3Backend struct {
-	BackendName string
-	Config      S3BackendConfig
-	data        *TerraformData
-}
+func NewS3TerraformBackend(config *BackendConfigBlock) (*TerraformBackend, error) {
+	var b S3BackendConfig
 
-func (b *S3Backend) read() (*TerraformData, error) {
-	if b.Config.Region == "" {
+	cfg := config.ConfigAttrs.(hcl.Body)
+	if diags := gohcl.DecodeBody(cfg, nil, &b); diags != nil {
+		return nil, errors.New("cannot parse s3 backend config")
+	}
+
+	if b.Region == "" {
 		if region, err := s3manager.GetBucketRegion(
 			context.Background(),
 			session.Must(session.NewSession()),
-			b.Config.Bucket,
+			b.Bucket,
 			"us-east-1",
 		); err != nil {
 			return nil, err
 		} else {
-			b.Config.Region = region
+			b.Region = region
 		}
 	}
 
 	sess, err := session.NewSessionWithOptions(session.Options{
 		Config: aws.Config{
-			Region: aws.String(b.Config.Region),
+			Region: aws.String(b.Region),
 		},
 		SharedConfigState: session.SharedConfigEnable,
 	})
@@ -124,20 +80,20 @@ func (b *S3Backend) read() (*TerraformData, error) {
 		return nil, err
 	}
 
-	cfg := &aws.Config{}
-	if b.Config.RoleArn != "" {
-		arn, err := arn.Parse(b.Config.RoleArn)
+	awsCfg := &aws.Config{}
+	if b.RoleArn != "" {
+		arn, err := arn.Parse(b.RoleArn)
 		if err != nil {
 			return nil, err
 		}
 		creds := stscreds.NewCredentials(sess, arn.String())
-		cfg.Credentials = creds
+		awsCfg.Credentials = creds
 	}
-	svc := s3.New(sess, cfg)
+	svc := s3.New(sess, awsCfg)
 
 	result, err := svc.GetObject(&s3.GetObjectInput{
-		Bucket: aws.String(b.Config.Bucket),
-		Key:    aws.String(b.Config.Key),
+		Bucket: aws.String(b.Bucket),
+		Key:    aws.String(b.Key),
 	})
 	if err != nil {
 		return nil, err
@@ -149,55 +105,56 @@ func (b *S3Backend) read() (*TerraformData, error) {
 	if s.State.Version != StateVersion {
 		return nil, fmt.Errorf("unsupported state version %d", s.State.Version)
 	}
-	return &s, nil
+
+	return &TerraformBackend{
+		BackendType: S3,
+		BackendName: config.BackendName,
+		Data:        &s,
+	}, nil
 }
 
-func (b *S3Backend) loadConfig(config interface{}) error {
-	cfg := config.(hcl.Body)
-	if diags := gohcl.DecodeBody(cfg, nil, &b.Config); diags != nil {
-		return errors.New("cannot parse backend config")
+func NewLocalTerraformBackend(config *BackendConfigBlock) (*TerraformBackend, error) {
+	var b LocalBackendConfig
+
+	cfg := config.ConfigAttrs.(hcl.Body)
+	if diags := gohcl.DecodeBody(cfg, nil, &b); diags != nil {
+		return nil, errors.New("cannot parse local backend config")
 	}
-	return nil
+	f, err := os.Open(b.Path)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read tfstate from %s", b.Path)
+	}
+	defer f.Close()
+
+	var s TerraformData
+	if err := json.NewDecoder(f).Decode(&s.State); err != nil {
+		return nil, fmt.Errorf("invalid tf state file")
+	}
+	if s.State.Version != StateVersion {
+		return nil, fmt.Errorf("unsupported state version %d", s.State.Version)
+	}
+
+	return &TerraformBackend{
+		BackendType: LOCAL,
+		BackendName: config.BackendName,
+		Data:        &s,
+	}, nil
 }
 
-func (b *S3Backend) Type() BackendType {
-	return S3
-}
-
-func (b *S3Backend) Name() string {
-	return b.BackendName
-}
-
-func (b *S3Backend) Data() *TerraformData {
-	return b.data
-}
-
-func NewBackend(cfg *BackendConfigBlock) (Backend, error) {
+func NewBackend(cfg *BackendConfigBlock) (*TerraformBackend, error) {
 	switch cfg.BackendType {
 	case "local":
-		backend := LocalBackend{}
-		backend.BackendName = cfg.BackendName
-		if err := backend.loadConfig(cfg.ConfigAttrs); err != nil {
+		localBackend, err := NewLocalTerraformBackend(cfg)
+		if err != nil {
 			return nil, err
 		}
-		if d, err := backend.read(); err != nil {
-			return nil, err
-		} else {
-			backend.data = d
-		}
-		return &backend, nil
+		return localBackend, nil
 	case "s3":
-		backend := S3Backend{}
-		backend.BackendName = cfg.BackendName
-		if err := backend.loadConfig(cfg.ConfigAttrs); err != nil {
+		s3Backend, err := NewS3TerraformBackend(cfg)
+		if err != nil {
 			return nil, err
 		}
-		if d, err := backend.read(); err != nil {
-			return nil, err
-		} else {
-			backend.data = d
-		}
-		return &backend, nil
+		return s3Backend, nil
 	default:
 		return nil, errors.New("unsupported backend")
 	}

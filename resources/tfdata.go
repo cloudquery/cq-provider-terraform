@@ -15,105 +15,127 @@ var providerNameRegex = regexp.MustCompile(`^.*\["(?P<Hostname>.*)/(?P<Namespace
 func TFData() *schema.Table {
 	return &schema.Table{
 		Name:         "tf_data",
+		Description:  "Terraform meta data",
 		Resolver:     resolveTerraformMetaData,
-		DeleteFilter: client.DeleteLineageFilter,
+		DeleteFilter: client.DeleteLineageSerialFilter,
 		Multiplex:    client.BackendMultiplex,
 		Columns: []schema.Column{
 			{
-				Name:     "backend",
-				Type:     schema.TypeString,
-				Resolver: resolveBackend,
+				Name:        "backend_type",
+				Description: "Terraform backend type",
+				Type:        schema.TypeString,
+				Resolver:    resolveBackendType,
 			},
 			{
-				Name:     "backend_name",
-				Type:     schema.TypeString,
-				Resolver: resolveBackendName,
+				Name:        "backend_name",
+				Type:        schema.TypeString,
+				Description: "Terraform backend name",
+				Resolver:    resolveBackendName,
 			},
 			{
-				Name: "version",
-				Type: schema.TypeBigInt,
+				Name:        "version",
+				Type:        schema.TypeBigInt,
+				Description: "Terraform backend version",
 			},
 			{
-				Name: "terraform_version",
-				Type: schema.TypeString,
+				Name:        "terraform_version",
+				Type:        schema.TypeString,
+				Description: "Terraform version",
 			},
 			{
-				Name: "serial",
-				Type: schema.TypeBigInt,
+				Name:        "serial",
+				Type:        schema.TypeBigInt,
+				Description: "Incremental number which describe the state version",
 			},
 			{
-				Name: "lineage",
-				Type: schema.TypeString,
+				Name:        "lineage",
+				Type:        schema.TypeString,
+				Description: "The \"lineage\" is a unique ID assigned to a state when it is created",
 			},
 		},
 		Relations: []*schema.Table{
 			{
-				Name:     "tf_resources",
-				Resolver: resolveTerraformResources,
+				Name:        "tf_resources",
+				Description: "Terraform resources",
+				Resolver:    resolveTerraformResources,
 				Columns: []schema.Column{
 					{
-						Name:     "running_id",
-						Type:     schema.TypeUUID,
-						Resolver: schema.ParentIdResolver,
+						Name:        "running_id",
+						Description: "Unique fetch operation id",
+						Type:        schema.TypeUUID,
+						Resolver:    schema.ParentIdResolver,
 					},
 					{
-						Name: "module",
-						Type: schema.TypeString,
+						Name:        "module",
+						Description: "Resource module if exists",
+						Type:        schema.TypeString,
 					},
 					{
-						Name: "mode",
-						Type: schema.TypeString,
+						Name:        "mode",
+						Description: "Resource mode, for example: data, managed, etc",
+						Type:        schema.TypeString,
 					},
 					{
-						Name: "type",
-						Type: schema.TypeString,
+						Name:        "type",
+						Description: "Resource type",
+						Type:        schema.TypeString,
 					},
 					{
-						Name: "name",
-						Type: schema.TypeString,
+						Name:        "name",
+						Description: "Resource name",
+						Type:        schema.TypeString,
 					},
 					{
-						Name:     "provider_path",
-						Type:     schema.TypeString,
-						Resolver: schema.PathResolver("ProviderConfig"),
+						Name:        "provider_path",
+						Description: "Resource provider full path, for example: provider[\"registry.terraform.io/hashicorp/aws\"]",
+						Type:        schema.TypeString,
+						Resolver:    schema.PathResolver("ProviderConfig"),
 					},
 					{
-						Name:     "provider",
-						Type:     schema.TypeString,
-						Resolver: resolveProviderName,
+						Name:        "provider",
+						Description: "Resource provider name, for example: aws, gcp, etc",
+						Type:        schema.TypeString,
+						Resolver:    resolveProviderName,
 					},
 				},
 				Relations: []*schema.Table{
 					{
-						Name:     "tf_resource_instances",
-						Resolver: resolveTerraformResourceInstances,
+						Name:        "tf_resource_instances",
+						Description: "Terraform resource instances",
+						Resolver:    resolveTerraformResourceInstances,
 						Columns: []schema.Column{
 							{
-								Name:     "resource_id",
-								Type:     schema.TypeUUID,
-								Resolver: schema.ParentIdResolver,
+								Name:        "resource_id",
+								Description: "Parent resource id",
+								Type:        schema.TypeUUID,
+								Resolver:    schema.ParentIdResolver,
 							},
 							{
-								Name:     "internal_id",
-								Type:     schema.TypeString,
-								Resolver: resolveInstanceInternalId,
+								Name:        "instance_id",
+								Description: "Instance id",
+								Type:        schema.TypeString,
+								Resolver:    resolveInstanceInternalId,
 							},
 							{
-								Name: "schema_version",
-								Type: schema.TypeBigInt,
+								Name:        "schema_version",
+								Description: "Terraform schema version",
+								Type:        schema.TypeBigInt,
 							},
 							{
-								Name:     "attribute",
-								Type:     schema.TypeJSON,
-								Resolver: resolveInstanceAttributes,
+								Name:        "attributes",
+								Description: "Instance attributes",
+								Type:        schema.TypeJSON,
+								Resolver:    resolveInstanceAttributes,
 							},
 							{
-								Name: "dependencies",
-								Type: schema.TypeStringArray,
+								Name:        "dependencies",
+								Description: "Instance dependencies array",
+								Type:        schema.TypeStringArray,
 							},
 							{
-								Name: "create_before_destroy",
-								Type: schema.TypeBool,
+								Name:        "create_before_destroy",
+								Description: "Should resource should be created before destroying",
+								Type:        schema.TypeBool,
 							},
 						},
 					},
@@ -129,20 +151,20 @@ func TFData() *schema.Table {
 func resolveTerraformMetaData(_ context.Context, meta schema.ClientMeta, _ *schema.Resource, res chan interface{}) error {
 	c := meta.(*client.Client)
 	backend := c.Backend()
-	res <- backend.Data().State
+	res <- backend.Data.State
 	return nil
 }
 
-func resolveBackend(_ context.Context, meta schema.ClientMeta, resource *schema.Resource, _ schema.Column) error {
+func resolveBackendType(_ context.Context, meta schema.ClientMeta, resource *schema.Resource, _ schema.Column) error {
 	c := meta.(*client.Client)
 	backend := c.Backend()
-	return resource.Set("backend", backend.Type())
+	return resource.Set("backend_type", backend.BackendType)
 }
 
 func resolveBackendName(_ context.Context, meta schema.ClientMeta, resource *schema.Resource, _ schema.Column) error {
 	c := meta.(*client.Client)
 	backend := c.Backend()
-	return resource.Set("backend_name", backend.Name())
+	return resource.Set("backend_name", backend.BackendName)
 }
 
 func resolveTerraformResources(_ context.Context, _ schema.ClientMeta, parent *schema.Resource, res chan interface{}) error {
@@ -197,7 +219,7 @@ func resolveInstanceInternalId(_ context.Context, _ schema.ClientMeta, resource 
 	instance := resource.Item.(client.Instance)
 	data := make(map[string]interface{})
 	if err := json.Unmarshal(instance.AttributesRaw, &data); err != nil {
-		return nil
+		return fmt.Errorf("could not parse internal instance id")
 	}
 	if val, ok := data["id"]; ok {
 		return resource.Set(c.Name, val)
