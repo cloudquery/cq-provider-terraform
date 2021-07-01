@@ -13,6 +13,7 @@ type Client struct {
 	Backends map[string]*TerraformBackend
 	logger   hclog.Logger
 
+	// CurrentBackend set by client multiplexer
 	CurrentBackend string
 }
 
@@ -36,15 +37,18 @@ func Configure(logger hclog.Logger, providerConfig interface{}) (schema.ClientMe
 
 	var backends = make(map[string]*TerraformBackend)
 	for _, config := range terraformConfig.Config {
+		logger.Info("creating new %s backend", config.BackendType)
+		// create backend for each backend config
 		if b, err := NewBackend(&config); err == nil {
 			backends[b.BackendName] = b
 		} else {
-			return nil, fmt.Errorf("cannot load backend, %s", err)
+			return nil, fmt.Errorf("cannot initialize %s backend, %s", config.BackendType, err)
 		}
 	}
 
 	client := NewTerraformClient(logger, backends)
 
+	// Returns the initialized client with requested backends
 	return &client, nil
 }
 
@@ -59,6 +63,7 @@ func (c *Client) Backend() *TerraformBackend {
 	return nil
 }
 
+// Sets the current backend to working with
 func (c *Client) withSpecificBackend(backendName string) *Client {
 	return &Client{
 		Backends:       c.Backends,
