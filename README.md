@@ -10,8 +10,6 @@ CloudQuery Terraform Provider ![BuildStatus](https://img.shields.io/github/workf
 This [CloudQuery](https://github.com/cloudquery/cloudquery)
 provider transforms Terraform state to relational and graph databases.
 
-####For installation and more examples see [docs](docs/index.md).
-
 ## What is CloudQuery
 
 CloudQuery pulls, normalize, expose and monitor your cloud infrastructure and SaaS apps as SQL database.
@@ -21,6 +19,10 @@ cloudquery can be easily extended to more resources and SaaS providers (open an 
 
 Think about cloudquery as a compliance-as-code tool inspired by tools like [osquery](https://github.com/osquery/osquery)
 and [terraform](https://github.com/hashicorp/terraform), cool right?
+
+### Installation & Examples
+
+Visit [CloudQuery Hub](https://hub.cloudquery.io/providers/cloudquery/terraform/latest) or the local docs [here](docs/index.md). 
 
 ### Links
 * Homepage: https://cloudquery.io
