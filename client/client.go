@@ -37,6 +37,9 @@ func Configure(logger hclog.Logger, providerConfig interface{}) (schema.ClientMe
 
 	var backends = make(map[string]*TerraformBackend)
 	for _, config := range terraformConfig.Config {
+		config := config
+		config.format = terraformConfig.Format()
+
 		logger.Info("creating new backend", "type", config.BackendType)
 		// create backend for each backend config
 		if b, err := NewBackend(&config); err == nil { //nolint:revive
