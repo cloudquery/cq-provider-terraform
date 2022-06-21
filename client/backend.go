@@ -31,9 +31,10 @@ const (
 
 // BackendConfigBlock - abstract backend config
 type BackendConfigBlock struct {
-	BackendName string      `yaml:"name" hcl:"config,label"`
-	BackendType string      `yaml:"backend" hcl:"backend,attr"`
-	ConfigAttrs interface{} `yaml:",inline" hcl:"config,remain"`
+	BackendName     string                 `yaml:"name" hcl:"config,label"`
+	BackendType     string                 `yaml:"backend" hcl:"backend,attr"`
+	ConfigAttrsHCL  interface{}            `yaml:"-" hcl:"config,remain"`
+	ConfigAttrsYAML map[string]interface{} `yaml:",inline"`
 
 	format cqproto.ConfigFormat
 }
@@ -72,13 +73,13 @@ func NewS3TerraformBackend(config *BackendConfigBlock) (*TerraformBackend, error
 
 	switch config.format {
 	case cqproto.ConfigHCL:
-		cfg := config.ConfigAttrs.(hcl.Body)
+		cfg := config.ConfigAttrsHCL.(hcl.Body)
 		if diags := gohcl.DecodeBody(cfg, nil, &b); diags != nil {
 			return nil, errors.New("cannot parse s3 backend config")
 		}
 	default:
-		cfg := config.ConfigAttrs.([]byte)
-		if err := yaml.Unmarshal(cfg, &b); err != nil {
+		cfgBytes, _ := yaml.Marshal(config.ConfigAttrsYAML)
+		if err := yaml.Unmarshal(cfgBytes, &b); err != nil {
 			return nil, fmt.Errorf("cannot parse s3 backend config: %w", err)
 		}
 	}
@@ -145,13 +146,13 @@ func NewLocalTerraformBackend(config *BackendConfigBlock) (*TerraformBackend, er
 
 	switch config.format {
 	case cqproto.ConfigHCL:
-		cfg := config.ConfigAttrs.(hcl.Body)
+		cfg := config.ConfigAttrsHCL.(hcl.Body)
 		if diags := gohcl.DecodeBody(cfg, nil, &b); diags != nil {
 			return nil, errors.New("cannot parse local backend config")
 		}
 	default:
-		cfg := config.ConfigAttrs.([]byte)
-		if err := yaml.Unmarshal(cfg, &b); err != nil {
+		cfgBytes, _ := yaml.Marshal(config.ConfigAttrsYAML)
+		if err := yaml.Unmarshal(cfgBytes, &b); err != nil {
 			return nil, fmt.Errorf("cannot parse local backend config: %w", err)
 		}
 	}

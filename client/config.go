@@ -1,6 +1,8 @@
 package client
 
-import "github.com/cloudquery/cq-provider-sdk/cqproto"
+import (
+	"github.com/cloudquery/cq-provider-sdk/cqproto"
+)
 
 type Config struct {
 	Config []BackendConfigBlock `yaml:"config" hcl:"config,block"`
